@@ -1,0 +1,16 @@
+{
+  "--model_name": "sd_model/tiny-sd",
+  "--data_dir": "data",
+  "--output_dir": "ckpts/model_ckpt/dream_booth_tiny",
+  "--prompt": "backpack",
+  "--epochs": 200,
+  "--check_epochs": [
+    0
+  ],
+  "--check_t_min": 400,
+  "--check_t_max": 600,
+  "--batch_size": 5,
+  "--num_samples": 5,
+  "--learning_rate": 1e-05,
+  "--seed": 42
+}

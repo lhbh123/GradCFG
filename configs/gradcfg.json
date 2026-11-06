@@ -1,0 +1,21 @@
+{
+  "--model_name": "dream_booth_tiny",
+  "--model_path": "sd_model/tiny-sd",
+  "--label_name": "backpack",
+  "--start_epoch": 0,
+  "--batch_size": 5,
+  "--num_epochs": 4001,
+  "--lr_img": 0.1,
+  "--lr_txt": 0.001,
+  "--lr_noi": 0.1,
+  "--lr_t": 0.01,
+  "--ind_lambda": 0.01,
+  "--switch_epoch": 100,
+  "--reini_time": 100,
+  "--init_scale": 0.5,
+  "--t_min": 0.4,
+  "--t_max": 0.6,
+  "--tv_lambda": 0.5,
+  "--tv_every": 5,
+  "--seed": 42
+}

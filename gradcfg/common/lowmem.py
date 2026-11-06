@@ -4,7 +4,9 @@ import torch
 import torch.nn.functional as F
 
 
-def backward_aggregate_cosine(parameter, observed_gradient, batch_size, sample_loss, attack_variables):
+def backward_aggregate_cosine(
+    parameter, observed_gradient, batch_size, sample_loss, attack_variables
+):
     """Accumulate the gradient of cosine(mean_i grad_theta loss_i, observed).
 
     sample_loss(index, detached) must return the mean loss for one sample.
@@ -31,7 +33,9 @@ def backward_aggregate_cosine(parameter, observed_gradient, batch_size, sample_l
         sample_gradient = torch.autograd.grad(
             sample_loss(index, False), parameter, create_graph=True
         )[0]
-        torch.autograd.backward(sample_gradient, grad_tensors=direction, inputs=attack_variables)
+        torch.autograd.backward(
+            sample_gradient, grad_tensors=direction, inputs=attack_variables
+        )
         del sample_gradient
 
     return main_loss.detach()

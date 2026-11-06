@@ -3,21 +3,22 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Tuple
 import torch
 from tqdm import tqdm
+
 if TYPE_CHECKING:
     from diffusers import DDIMScheduler
 
 
 @torch.no_grad()
 def ddim_sampling(
-        initial_latents: torch.Tensor,
-        unet_ori: torch.nn.Module,
-        unet_fin: torch.nn.Module | None,
-        text_embeddings: torch.Tensor,
-        scheduler: DDIMScheduler,
-        guidance_scale: float = 7.5,
-        num_inference_steps: int = 50,
-        device: str = "cuda",
-        uncond_embeddings: torch.Tensor | None = None,
+    initial_latents: torch.Tensor,
+    unet_ori: torch.nn.Module,
+    unet_fin: torch.nn.Module | None,
+    text_embeddings: torch.Tensor,
+    scheduler: DDIMScheduler,
+    guidance_scale: float = 7.5,
+    num_inference_steps: int = 50,
+    device: str = "cuda",
+    uncond_embeddings: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """
     Sample with model disparity, or with ordinary CFG if unet_fin is None.
@@ -53,18 +54,25 @@ def ddim_sampling(
 
         # Predict noise residual
         if unet_fin is not None and guidance_scale == 0:
-            noise_pred = unet_ori(latent_model_input, t.expand(batch_size), text_embeddings).sample
+            noise_pred = unet_ori(
+                latent_model_input, t.expand(batch_size), text_embeddings
+            ).sample
         elif unet_fin is not None and guidance_scale == 1:
-            noise_pred = unet_fin(latent_model_input, t.expand(batch_size), text_embeddings).sample
+            noise_pred = unet_fin(
+                latent_model_input, t.expand(batch_size), text_embeddings
+            ).sample
         else:
             noise_pred_cond = (unet_fin if unet_fin is not None else unet_ori)(
                 latent_model_input, t.expand(batch_size), text_embeddings
             ).sample
             noise_pred_uncond = unet_ori(
-                latent_model_input, t.expand(batch_size),
-                text_embeddings if unet_fin is not None else uncond_embeddings
+                latent_model_input,
+                t.expand(batch_size),
+                text_embeddings if unet_fin is not None else uncond_embeddings,
             ).sample
-            noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_cond - noise_pred_uncond)
+            noise_pred = noise_pred_uncond + guidance_scale * (
+                noise_pred_cond - noise_pred_uncond
+            )
 
         # Update latents
         latents = scheduler.step(noise_pred, t, latents, eta=0.0).prev_sample
@@ -74,14 +82,14 @@ def ddim_sampling(
 
 @torch.no_grad()
 def ddim_inversion(
-        target_latents: torch.Tensor,
-        unet: torch.nn.Module,
-        text_embeddings: torch.Tensor,
-        uncond_embeddings: torch.Tensor,
-        scheduler: DDIMScheduler,
-        guidance_scale: float = 7.5,
-        num_inversion_steps: int = 50,
-        device: str = "cuda",
+    target_latents: torch.Tensor,
+    unet: torch.nn.Module,
+    text_embeddings: torch.Tensor,
+    uncond_embeddings: torch.Tensor,
+    scheduler: DDIMScheduler,
+    guidance_scale: float = 7.5,
+    num_inversion_steps: int = 50,
+    device: str = "cuda",
 ) -> torch.Tensor:
     """
     Perform DDIM inversion to reconstruct noise latents from images.
@@ -121,14 +129,14 @@ def ddim_inversion(
 
         # Predict noise residual
         noise_pred = unet(
-            latent_model_input,
-            t.expand(batch_size * 2),
-            conditioning
+            latent_model_input, t.expand(batch_size * 2), conditioning
         ).sample
 
         # Apply classifier-free guidance
         noise_pred_uncond, noise_pred_cond = noise_pred.chunk(2)
-        noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_cond - noise_pred_uncond)
+        noise_pred = noise_pred_uncond + guidance_scale * (
+            noise_pred_cond - noise_pred_uncond
+        )
 
         # Approximate inversion using current and next timestep
         current_t = max(0, t.item() - (1000 // num_inversion_steps))  # t
@@ -137,25 +145,25 @@ def ddim_inversion(
         alpha_t_next = scheduler.alphas_cumprod[next_t]
 
         # Inverted update step (re-arranging the update step to get x(t) (new latents) as a function of x(t-1) (current latents)
-        latents = (latents - (1 - alpha_t).sqrt() * noise_pred) * (alpha_t_next.sqrt() / alpha_t.sqrt()) + (
-                1 - alpha_t_next
-        ).sqrt() * noise_pred
+        latents = (latents - (1 - alpha_t).sqrt() * noise_pred) * (
+            alpha_t_next.sqrt() / alpha_t.sqrt()
+        ) + (1 - alpha_t_next).sqrt() * noise_pred
 
     return latents
 
 
 @torch.no_grad()
 def inversion_based_sampling(
-        target_latents: torch.Tensor,
-        text_embeddings: torch.Tensor,
-        uncond_embeddings: torch.Tensor,
-        original_unet: torch.nn.Module,
-        finetuned_unet: torch.nn.Module | None,
-        scheduler: DDIMScheduler,
-        num_steps: int = 50,
-        guidance_scale_inv: float = 7.5,
-        guidance_scale_sam: float = 7.5,
-        device: str = "cuda",
+    target_latents: torch.Tensor,
+    text_embeddings: torch.Tensor,
+    uncond_embeddings: torch.Tensor,
+    original_unet: torch.nn.Module,
+    finetuned_unet: torch.nn.Module | None,
+    scheduler: DDIMScheduler,
+    num_steps: int = 50,
+    guidance_scale_inv: float = 7.5,
+    guidance_scale_sam: float = 7.5,
+    device: str = "cuda",
 ) -> torch.Tensor:
     """
     Invert with the original model, then sample with Inv-Rev or single-model CFG.
@@ -183,7 +191,7 @@ def inversion_based_sampling(
         scheduler=scheduler,
         guidance_scale=guidance_scale_inv,
         num_inversion_steps=num_steps,
-        device=device
+        device=device,
     )
 
     # Step 2: Sampling with finetuned model

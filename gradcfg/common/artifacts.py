@@ -1,15 +1,21 @@
 """Resolve historical gradient naming conventions without rewriting results."""
+
 from pathlib import Path
 import json
 
 
 def gradient_path(checkpoint_dir, epoch):
     directory = Path(checkpoint_dir)
-    candidates = [directory / f"gradients_epoch_{epoch}.pt", directory / f"gradients_{epoch}.pt"]
+    candidates = [
+        directory / f"gradients_epoch_{epoch}.pt",
+        directory / f"gradients_{epoch}.pt",
+    ]
     for path in candidates:
         if path.is_file():
             return path
-    raise FileNotFoundError("Missing captured gradient; expected one of: " + ", ".join(map(str, candidates)))
+    raise FileNotFoundError(
+        "Missing captured gradient; expected one of: " + ", ".join(map(str, candidates))
+    )
 
 
 def prepare_run_directory(args, default_directory):

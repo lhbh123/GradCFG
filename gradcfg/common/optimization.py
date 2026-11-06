@@ -1,9 +1,11 @@
 """Shared attack helpers, preserving the original numerical operations."""
+
 import os
 import random
 
 import numpy as np
 import torch
+
 
 def set_seed(seed: int = 42):
     """Set random seed for reproducibility"""
@@ -16,7 +18,7 @@ def set_seed(seed: int = 42):
     # Additional settings for better reproducibility (may impact performance)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-    os.environ['PYTHONHASHSEED'] = str(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
 
 
 def tv_loss(img: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
@@ -24,8 +26,8 @@ def tv_loss(img: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
     Anisotropic TV loss: |dx| + |dy|
     img: (B, C, H, W)
     """
-    dy = img[:, :, 1:, :] - img[:, :, :-1, :]    # (B, C, H-1, W)
-    dx = img[:, :, :, 1:] - img[:, :, :, :-1]    # (B, C, H,   W-1)
+    dy = img[:, :, 1:, :] - img[:, :, :-1, :]  # (B, C, H-1, W)
+    dx = img[:, :, :, 1:] - img[:, :, :, :-1]  # (B, C, H,   W-1)
 
     tv_y = dy.abs().mean()
     tv_x = dx.abs().mean()

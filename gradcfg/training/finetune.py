@@ -19,19 +19,21 @@ class SimpleDataset(Dataset):
     def __init__(self, data_dir, prompt, tokenizer, size=512, num_samples=None):
         all_files = sorted(
             [f for f in Path(f"{data_dir}/{prompt}").glob("*") if f.is_file()],
-            key=lambda x: x.name
+            key=lambda x: x.name,
         )
         if num_samples is not None:
             all_files = all_files[:num_samples]
         self.image_paths = all_files
         self.prompt = prompt
         self.tokenizer = tokenizer
-        self.transform = transforms.Compose([
-            transforms.Resize(size),
-            transforms.CenterCrop(size),
-            transforms.ToTensor(),
-            transforms.Normalize([0.5], [0.5])
-        ])
+        self.transform = transforms.Compose(
+            [
+                transforms.Resize(size),
+                transforms.CenterCrop(size),
+                transforms.ToTensor(),
+                transforms.Normalize([0.5], [0.5]),
+            ]
+        )
 
     def __len__(self):
         return len(self.image_paths)
@@ -43,7 +45,7 @@ class SimpleDataset(Dataset):
             self.prompt,
             padding="max_length",
             max_length=self.tokenizer.model_max_length,
-            return_tensors="pt"
+            return_tensors="pt",
         )
         return {"pixel_values": pixel, "input_ids": tokens.input_ids.squeeze()}
 
@@ -51,23 +53,30 @@ class SimpleDataset(Dataset):
 def train(args):
     if args.seed is not None:
         from gradcfg.common.optimization import set_seed
+
         set_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     tokenizer = CLIPTokenizer.from_pretrained(args.model_name, subfolder="tokenizer")
-    text_encoder = CLIPTextModel.from_pretrained(args.model_name, subfolder="text_encoder").to(device)
+    text_encoder = CLIPTextModel.from_pretrained(
+        args.model_name, subfolder="text_encoder"
+    ).to(device)
     vae = AutoencoderKL.from_pretrained(args.model_name, subfolder="vae").to(device)
-    unet = UNet2DConditionModel.from_pretrained(args.model_name, subfolder="unet").to(device)
+    unet = UNet2DConditionModel.from_pretrained(args.model_name, subfolder="unet").to(
+        device
+    )
     noise_scheduler = DDPMScheduler(
         num_train_timesteps=TIME,
         beta_start=0.00085,
         beta_end=0.012,
-        beta_schedule="scaled_linear"
+        beta_schedule="scaled_linear",
     )
     vae.requires_grad_(False)
     text_encoder.requires_grad_(False)
 
-    dataset = SimpleDataset(args.data_dir, args.prompt, tokenizer, num_samples=args.num_samples)
+    dataset = SimpleDataset(
+        args.data_dir, args.prompt, tokenizer, num_samples=args.num_samples
+    )
     if len(dataset) == 0:
         raise ValueError("No training images found; check --data_dir and --prompt.")
     dataloader = DataLoader(
@@ -75,7 +84,7 @@ def train(args):
         batch_size=args.batch_size,
         shuffle=False,
         num_workers=args.num_workers,
-        pin_memory=True
+        pin_memory=True,
     )
 
     optimizer = torch.optim.Adam(unet.parameters(), lr=args.learning_rate)
@@ -112,8 +121,10 @@ def train(args):
 
             # Use the full scheduler range for every training and capture step.
             timesteps = torch.randint(
-                0, noise_scheduler.config.num_train_timesteps,
-                (latents.shape[0],), device=device,
+                0,
+                noise_scheduler.config.num_train_timesteps,
+                (latents.shape[0],),
+                device=device,
             )
 
             all_noises.append(noise.cpu().detach().clone())
@@ -149,7 +160,7 @@ def train(args):
 
                 torch.save(
                     all_gradients,
-                    os.path.join(output_dir, f"gradients_epoch_{epoch}.pt")
+                    os.path.join(output_dir, f"gradients_epoch_{epoch}.pt"),
                 )
 
             optimizer.step()
@@ -164,7 +175,9 @@ def train(args):
     torch.save(all_noises, os.path.join(noise_save_path, "all_noises.pt"))
     torch.save(all_timesteps_list, os.path.join(noise_save_path, "all_timesteps.pt"))
     torch.save(latents.cpu().detach().clone(), os.path.join(noise_save_path, "img.pt"))
-    torch.save(text_emb.cpu().detach().clone(), os.path.join(noise_save_path, "text_emb.pt"))
+    torch.save(
+        text_emb.cpu().detach().clone(), os.path.join(noise_save_path, "text_emb.pt")
+    )
 
     initial_weights = torch.load(ori_path)
     final_weights = torch.load(final_path)
@@ -177,23 +190,60 @@ def train(args):
     print(f"Ratio (Δ/Initial): {weight_stats['delta_ratio']:.6f}")
 
     stats_path = output_dir / "weight_changes.json"
-    with open(stats_path, 'w') as f:
+    with open(stats_path, "w") as f:
         json.dump(weight_stats, f, indent=4)
     print(f"Saved weight change statistics to {stats_path}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_name", default="sd_model/tiny-sd")
-    parser.add_argument("--data_dir", default="data")
-    parser.add_argument("--prompt", default="backpack")
-    parser.add_argument("--output_dir", default="ckpts/model_ckpt/dream_booth_tiny")
-    parser.add_argument("--epochs", type=int, default=200)
-    parser.add_argument("--batch_size", type=int, default=5)
-    parser.add_argument("--num_samples", type=int, default=5)
-    parser.add_argument("--num_workers", type=int, default=4)
-    parser.add_argument("--learning_rate", type=float, default=1e-5)
-    parser.add_argument("--seed", type=int, default=None, help="Optional deterministic seed; omitted preserves historical behavior")
+    parser.add_argument(
+        "--model_name",
+        default="sd_model/tiny-sd",
+    )
+    parser.add_argument(
+        "--data_dir",
+        default="data",
+    )
+    parser.add_argument(
+        "--prompt",
+        default="backpack",
+    )
+    parser.add_argument(
+        "--output_dir",
+        default="ckpts/model_ckpt/dream_booth_tiny",
+    )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=200,
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=5,
+    )
+    parser.add_argument(
+        "--num_samples",
+        type=int,
+        default=5,
+    )
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        default=4,
+    )
+    parser.add_argument(
+        "--learning_rate",
+        type=float,
+        default=1e-5,
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Optional deterministic seed; omitted preserves historical behavior",
+    )
 
     # Select epochs at which to save the model and first-batch gradient.
     parser.add_argument(

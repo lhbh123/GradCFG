@@ -8,7 +8,9 @@ import torchvision.utils as vutils
 SCALE_FACTOR = 0.18215  # Match the latent scaling used during training.
 
 
-def decode_latents_to_long_image(latent_path, model_name, out_path, orientation="vertical"):
+def decode_latents_to_long_image(
+    latent_path, model_name, out_path, orientation="vertical"
+):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -50,33 +52,36 @@ def decode_latents_to_long_image(latent_path, model_name, out_path, orientation=
     ndarr = grid.permute(1, 2, 0).numpy()
     img = Image.fromarray(ndarr)
     from pathlib import Path
+
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     img.save(out_path)
     print(f"Saved long image to: {out_path}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Decode saved SD latents to a long image")
+    parser = argparse.ArgumentParser(
+        description="Decode saved SD latents to a long image"
+    )
     parser.add_argument(
         "--model_name",
         default="sd_model/tiny-sd/",
-        help="Stable Diffusion base model path (same as training)"
+        help="Stable Diffusion base model path (same as training)",
     )
     parser.add_argument(
         "--latent_path",
         default="ckpts/model_ckpt/dream_booth_tiny/mix/training_noises/img.pt",
-        help="Path to saved latent tensor (img.pt)"
+        help="Path to saved latent tensor (img.pt)",
     )
     parser.add_argument(
         "--out_path",
         default="mix_results/mix_ori.png",
-        help="Where to save the decoded long image"
+        help="Where to save the decoded long image",
     )
     parser.add_argument(
         "--orientation",
         choices=["vertical", "horizontal"],
         default="vertical",
-        help="Strip orientation: vertical or horizontal"
+        help="Strip orientation: vertical or horizontal",
     )
 
     args = parser.parse_args()

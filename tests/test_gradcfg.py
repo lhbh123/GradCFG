@@ -11,7 +11,9 @@ from gradcfg.common.reparam import ReparamModule
 class TinyUNet(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.weight = torch.nn.Parameter(torch.tensor([0.2, -0.1, 0.3], dtype=torch.float64))
+        self.weight = torch.nn.Parameter(
+            torch.tensor([0.2, -0.1, 0.3], dtype=torch.float64)
+        )
 
     def forward(self, image, timestep, text):
         time = timestep.reshape(-1, 1, 1, 1) / 1000
@@ -27,11 +29,11 @@ class TinyVAE:
         return SimpleNamespace(sample=torch.tanh(image * 0.1))
 
 
-
 from torch import Tensor
 import torch.nn.functional as F
 from gradcfg.common.optimization import tv_loss
 from gradcfg.attacks.base import DEVICE, DEFAULT_NUM_TIMESTEPS
+
 
 class ReferenceObjective:
     def _compute_gradients(self, params: torch.Tensor) -> Tensor:
@@ -55,14 +57,13 @@ class ReferenceObjective:
 
     def reconstruction_loss(self, epoch):
         """Calculate composite reconstruction loss（+ TV 结构先验，可每隔N个epoch计算一次）"""
-        init_params = torch.cat([p.reshape(-1) for p in self.model_init.parameters()], 0).detach()
+        init_params = torch.cat(
+            [p.reshape(-1) for p in self.model_init.parameters()], 0
+        ).detach()
         total_grad = ReferenceObjective._compute_gradients(self, init_params)
 
         main_loss = 1 - F.cosine_similarity(
-            total_grad.flatten(),
-            self.model_grad.flatten(),
-            dim=0,
-            eps=1e-20
+            total_grad.flatten(), self.model_grad.flatten(), dim=0, eps=1e-20
         )
 
         diversity_loss = self._compute_similarity_loss()
@@ -75,7 +76,11 @@ class ReferenceObjective:
 
         # ====== TV loss：每隔 tv_every 个 epoch 计算一次 ======
         tv = None
-        if self.args.tv_lambda > 0 and self.args.tv_every > 0 and (epoch % self.args.tv_every == 0):
+        if (
+            self.args.tv_lambda > 0
+            and self.args.tv_every > 0
+            and (epoch % self.args.tv_every == 0)
+        ):
             decoded = self.vae.decode(self.dummy_images / 0.18215).sample
             decoded = (decoded / 2 + 0.5).clamp(0, 1)
             tv = tv_loss(decoded)
@@ -85,6 +90,7 @@ class ReferenceObjective:
         # ==============================================
 
         return total_loss, main_loss, diversity_loss, tv
+
 
 class FastAttackTests(unittest.TestCase):
     def test_tv_defaults_and_explicit_override(self):
@@ -102,24 +108,39 @@ class FastAttackTests(unittest.TestCase):
     def test_loss_and_four_variable_gradients_match_original(self):
         try:
             from gradcfg.attacks.base import DiffusionReconstructor as Base
-            from gradcfg.attacks.gradcfg import GradCFGReconstructor as FastDiffusionReconstructor
+            from gradcfg.attacks.gradcfg import (
+                GradCFGReconstructor as FastDiffusionReconstructor,
+            )
         except ImportError as error:
             self.skipTest(f"Diffusion imports unavailable: {error}")
 
         torch.manual_seed(31)
         attack = FastDiffusionReconstructor.__new__(FastDiffusionReconstructor)
-        attack.args = SimpleNamespace(batch_size=3, tv_lambda=0.2, tv_every=1,
-                                      switch_epoch=10, ind_lambda=0.03)
-        attack.dummy_images = torch.randn(3, 4, 4, 4, dtype=torch.float64, requires_grad=True)
-        attack.gaussian_images = torch.randn_like(attack.dummy_images, requires_grad=True)
-        attack.timesteps = torch.full((3,), 0.5, dtype=torch.float64, requires_grad=True)
+        attack.args = SimpleNamespace(
+            batch_size=3, tv_lambda=0.2, tv_every=1, switch_epoch=10, ind_lambda=0.03
+        )
+        attack.dummy_images = torch.randn(
+            3, 4, 4, 4, dtype=torch.float64, requires_grad=True
+        )
+        attack.gaussian_images = torch.randn_like(
+            attack.dummy_images, requires_grad=True
+        )
+        attack.timesteps = torch.full(
+            (3,), 0.5, dtype=torch.float64, requires_grad=True
+        )
         attack.text_emb = torch.randn(1, 2, 3, dtype=torch.float64, requires_grad=True)
         attack.model_init = ReparamModule(TinyUNet())
-        attack.attack_parameter = attack.model_init.flat_param.detach().requires_grad_(True)
+        attack.attack_parameter = attack.model_init.flat_param.detach().requires_grad_(
+            True
+        )
         attack.model_grad = torch.randn_like(attack.attack_parameter)
         attack.vae = TinyVAE()
-        variables = (attack.dummy_images, attack.text_emb,
-                     attack.gaussian_images, attack.timesteps)
+        variables = (
+            attack.dummy_images,
+            attack.text_emb,
+            attack.gaussian_images,
+            attack.timesteps,
+        )
 
         expected_loss, _, _, _ = ReferenceObjective.reconstruction_loss(attack, 0)
         expected_grads = torch.autograd.grad(expected_loss, variables)

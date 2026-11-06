@@ -1,0 +1,2 @@
+# Formatting tools; install separately from runtime dependencies.
+black==25.1.0

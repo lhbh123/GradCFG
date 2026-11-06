@@ -1,4 +1,5 @@
 """Weight change statistics shared by both fine-tuning workflows."""
+
 import torch
 
 
@@ -23,5 +24,5 @@ def calculate_weight_changes(initial_weights, final_weights):
     return {
         "norm_initial": norm_initial,
         "norm_delta": norm_delta,
-        "delta_ratio": ratio
+        "delta_ratio": ratio,
     }

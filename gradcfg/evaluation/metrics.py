@@ -1,4 +1,5 @@
 """Explicit RGB metric protocols; historical compare.py is available as legacy."""
+
 from functools import lru_cache
 import math
 
@@ -25,7 +26,7 @@ def align_images(img1, img2):
 
 def calculate_psnr(img1, img2):
     mse = np.mean((img1.astype(np.float64) - img2.astype(np.float64)) ** 2)
-    return float("inf") if mse == 0 else float(10 * math.log10(255 ** 2 / mse))
+    return float("inf") if mse == 0 else float(10 * math.log10(255**2 / mse))
 
 
 @lru_cache(maxsize=8)
@@ -40,13 +41,21 @@ def to_lpips_tensor(image, device, protocol):
 
     if protocol not in PROTOCOLS:
         raise ValueError(f"Unknown metric protocol: {protocol}")
-    tensor = torch.from_numpy(np.ascontiguousarray(image)).permute(2, 0, 1).unsqueeze(0).float() / 255.0
+    tensor = (
+        torch.from_numpy(np.ascontiguousarray(image))
+        .permute(2, 0, 1)
+        .unsqueeze(0)
+        .float()
+        / 255.0
+    )
     if protocol == "standard":
         tensor = tensor * 2.0 - 1.0
     return tensor.to(device)
 
 
-def calculate_image_similarity(img1, img2, device="cpu", protocol="standard", lpips_model=None, skip_lpips=False):
+def calculate_image_similarity(
+    img1, img2, device="cpu", protocol="standard", lpips_model=None, skip_lpips=False
+):
     """SSIM on grayscale, PSNR on RGB, LPIPS on RGB; resize to minimum size.
 
     legacy reproduces compare.py's BGR gray conversion on RGB and [0,1] LPIPS.
@@ -60,16 +69,29 @@ def calculate_image_similarity(img1, img2, device="cpu", protocol="standard", lp
     img1, img2 = align_images(img1, img2)
     conversion = cv2.COLOR_RGB2GRAY if protocol == "standard" else cv2.COLOR_BGR2GRAY
     scores = {
-        "ssim": float(structural_similarity(cv2.cvtColor(img1, conversion), cv2.cvtColor(img2, conversion), data_range=255)),
+        "ssim": float(
+            structural_similarity(
+                cv2.cvtColor(img1, conversion),
+                cv2.cvtColor(img2, conversion),
+                data_range=255,
+            )
+        ),
         "psnr": calculate_psnr(img1, img2),
         "lpips": None,
     }
     if not skip_lpips:
         import torch
 
-        model = lpips_model if lpips_model is not None else build_lpips_model(str(device))
+        model = (
+            lpips_model if lpips_model is not None else build_lpips_model(str(device))
+        )
         with torch.no_grad():
-            scores["lpips"] = float(model(to_lpips_tensor(img1, device, protocol), to_lpips_tensor(img2, device, protocol)).item())
+            scores["lpips"] = float(
+                model(
+                    to_lpips_tensor(img1, device, protocol),
+                    to_lpips_tensor(img2, device, protocol),
+                ).item()
+            )
     return scores
 
 

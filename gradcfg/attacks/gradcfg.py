@@ -13,8 +13,7 @@ from gradcfg.common.optimization import tv_loss
 
 
 def parse_gradcfg_args(argv=None):
-    return parse_args(argv, tv_lambda_default=0.5, tv_every_default=5,
-                      fast_options=True)
+    return parse_args(argv, tv_lambda_default=0.5, tv_every_default=5)
 
 
 class GradCFGReconstructor(DiffusionReconstructor):

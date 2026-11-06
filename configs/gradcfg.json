@@ -13,8 +13,8 @@
   "--switch_epoch": 100,
   "--reini_time": 100,
   "--init_scale": 0.5,
-  "--t_min": 0.4,
-  "--t_max": 0.6,
+  "--t_min": 0.001,
+  "--t_max": 0.999,
   "--tv_lambda": 0.5,
   "--tv_every": 5,
   "--seed": 42

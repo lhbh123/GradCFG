@@ -5,47 +5,47 @@ from diffusers import AutoencoderKL
 from PIL import Image
 import torchvision.utils as vutils
 
-SCALE_FACTOR = 0.18215  # 和训练时保持一致
+SCALE_FACTOR = 0.18215  # Match the latent scaling used during training.
 
 
 def decode_latents_to_long_image(latent_path, model_name, out_path, orientation="vertical"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    # 1. 加载 VAE
+    # 1. Load the VAE.
     vae = AutoencoderKL.from_pretrained(model_name, subfolder="vae").to(device)
     vae.eval()
 
-    # 2. 加载 latent 张量
+    # 2. Load the latent tensor.
     print(f"Loading latents from: {latent_path}")
     latents = torch.load(latent_path, map_location=device)
 
-    # 可能保存的是 [4, H, W] 的单张图，这里统一成 [B, 4, H, W]
+    # Add a batch dimension when a single latent image was saved.
     if latents.dim() == 3:
         latents = latents.unsqueeze(0)
 
     print(f"Latents shape: {latents.shape}")  # [B, 4, 64, 64] for SD 512x512
 
     with torch.no_grad():
-        # 注意：训练时 encode 用的是  latents = vae.encode(image).latent_dist.sample() * 0.18215
-        # 解码时需要除回来
+        # Training multiplies encoded latents by the latent scaling factor.
+        # Undo this scaling before decoding.
         latents = latents / SCALE_FACTOR
 
-        # 3. VAE 解码 -> [-1, 1] 区间
+        # 3. Decode VAE outputs in [-1, 1].
         images = vae.decode(latents).sample
 
-    # 4. 映射到 [0, 1]
+    # 4. Map decoded pixels to [0, 1].
     images = (images.clamp(-1, 1) + 1) / 2.0  # [B, 3, H, W]
 
-    # 5. 拼成长图
+    # 5. Arrange images into a strip.
     if orientation == "vertical":
-        # 一列，多行（竖着的长图）
+        # Arrange images in one column.
         grid = vutils.make_grid(images, nrow=1, padding=0)
     else:
-        # 一行，多列（横着的长图）
+        # Arrange images in one row.
         grid = vutils.make_grid(images, nrow=images.shape[0])
 
-    # 6. 转成 uint8 并保存
+    # 6. Convert to uint8 and save.
     grid = grid.mul(255).clamp(0, 255).byte().cpu()
     ndarr = grid.permute(1, 2, 0).numpy()
     img = Image.fromarray(ndarr)
@@ -76,7 +76,7 @@ if __name__ == "__main__":
         "--orientation",
         choices=["vertical", "horizontal"],
         default="vertical",
-        help="拼接方向：vertical = 竖长图，horizontal = 横长图"
+        help="Strip orientation: vertical or horizontal"
     )
 
     args = parser.parse_args()

@@ -121,14 +121,15 @@ class LowMemoryDiffusionReconstructor(DiffusionReconstructor):
                 torch.cuda.max_memory_reserved(self.dummy_images.device) / 2**30
                 if self.dummy_images.is_cuda else 0.0
             )
-            self.logger.info(
-                "Epoch %04d | Loss: %.4f | Main Loss: %.4f | Diversity Loss: %.4f | "
-                "TV: %.6f | epoch_time_s: %.3f | eta_s: %d | elapsed_s: %d | "
-                "peak_step_allocated_gib: %.2f | peak_step_reserved_gib: %.2f",
-                epoch, total_loss.item(), main_loss.item(),
-                diversity.item() if diversity is not None else 0.0,
-                tv.item(), epoch_time, eta, elapsed, peak_allocated, peak_reserved,
-            )
+            if epoch % self.args.log_every == 0 or epoch == self.args.num_epochs - 1:
+                self.logger.info(
+                    "Epoch %04d | Loss: %.4f | Main Loss: %.4f | Diversity Loss: %.4f | "
+                    "TV: %.6f | epoch_time_s: %.3f | eta_s: %d | elapsed_s: %d | "
+                    "peak_step_allocated_gib: %.2f | peak_step_reserved_gib: %.2f",
+                    epoch, total_loss.item(), main_loss.item(),
+                    diversity.item() if diversity is not None else 0.0,
+                    tv.item(), epoch_time, eta, elapsed, peak_allocated, peak_reserved,
+                )
 
             if epoch == self.args.num_epochs - 1 or (self.args.save_every > 0 and epoch % self.args.save_every == 0):
                 torch.save(self.dummy_images.detach().cpu(), save_dir / f"dummy_images_epoch{epoch}.pth")

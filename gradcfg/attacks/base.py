@@ -25,9 +25,8 @@ class DiffusionReconstructor:
     """Diffusion Model-based Image Reconstructor"""
 
     def __init__(self, args: argparse.Namespace):
-        from diffusers import AutoencoderKL, DDIMScheduler, UNet2DConditionModel
+        from diffusers import AutoencoderKL
         from transformers import CLIPTokenizer, CLIPTextModel
-        from diffusers.models.attention_processor import AttnProcessor
         self.args = args
         self.logger = self._setup_logger()
 
@@ -38,14 +37,8 @@ class DiffusionReconstructor:
         self.vae = AutoencoderKL.from_pretrained(args.model_path, subfolder="vae").to(DEVICE)
         self.tokenizer = CLIPTokenizer.from_pretrained(args.model_path, subfolder="tokenizer")
         self.text_encoder = CLIPTextModel.from_pretrained(args.model_path, subfolder="text_encoder").to(DEVICE)
-        self.scheduler = DDIMScheduler(
-            num_train_timesteps=DEFAULT_NUM_TIMESTEPS,
-            beta_start=0.00085,
-            beta_end=0.012,
-            beta_schedule="scaled_linear"
-        )
         self.model_init, self.model_grad = self._build_models()
-        self.text_emb, self.text_emb_ini = self._init_text_embeddings()
+        self.text_emb = self._init_text_embeddings()
         self.dummy_images = self._init_dummy_data()
         self.gaussian_images = self._init_gaussian_data()
         self.timesteps = self._init_timesteps()
@@ -67,7 +60,7 @@ class DiffusionReconstructor:
         logger = logging.getLogger("ReconstructionLogger")
         logger.setLevel(logging.DEBUG)
 
-        # 避免重复添加 handler（多次运行时）
+        # Avoid duplicate handlers when initialized repeatedly.
         if logger.handlers:
             return logger
 
@@ -94,7 +87,7 @@ class DiffusionReconstructor:
         from diffusers import UNet2DConditionModel
         from diffusers.models.attention_processor import AttnProcessor
         model_init = UNet2DConditionModel.from_pretrained(self.args.model_path, subfolder="unet")
-        # ckpt 目录包含 label 和 t_min（离散步数）
+        # Resolve the checkpoint directory by run name and label.
         ckpt_dir = Path("./ckpts/model_ckpt") / self.args.model_name / f"{self.args.label_name}"
         model_init.load_state_dict(torch.load(ckpt_dir / f"epoch_{self.args.start_epoch}.pt"))
         observed_path = getattr(self.args, "observed_gradient_path", None)
@@ -122,15 +115,8 @@ class DiffusionReconstructor:
         )
         return alpha_bar
 
-    def _init_text_embeddings(self) -> tuple[Any, Any]:
+    def _init_text_embeddings(self) -> torch.Tensor:
         with torch.no_grad():
-            text_input_ini = self.tokenizer(
-                [self.args.label_name],
-                padding="max_length",
-                max_length=self.tokenizer.model_max_length,
-                return_tensors="pt"
-            )
-            embeddings_ini = self.text_encoder(text_input_ini.input_ids.to(DEVICE))[0]
             text_input = self.tokenizer(
                 [""],
                 padding="max_length",
@@ -140,7 +126,7 @@ class DiffusionReconstructor:
             embeddings = self.text_encoder(text_input.input_ids.to(DEVICE))[0]
 
         embeddings.requires_grad_(True)
-        return embeddings, embeddings_ini
+        return embeddings
 
     def _init_dummy_data(self) -> torch.Tensor:
         """Initialize trainable dummy images (latent space)"""
@@ -159,10 +145,10 @@ class DiffusionReconstructor:
 
     def _init_timesteps(self) -> torch.Tensor:
         """
-        初始化连续 timestep（归一化到 [0,1]），
-        实际离散索引范围由 t_min / t_max 决定。
+        Initialize continuous timesteps normalized to [0, 1].
+        The configured bounds determine the initial integer index range.
         """
-        # 确保范围合法
+        # Clamp the initialization range to valid bounds.
         t_min = max(0.001, min(self.args.t_min, 1.0))
         t_max = max(0.001, min(self.args.t_max, 1.0))
         if t_max <= t_min:
@@ -214,7 +200,7 @@ class DiffusionReconstructor:
 
 
     def _compute_similarity_loss(self) -> Tensor | None:
-        """计算同一batch内图像间的相似度损失"""
+        """Compute the pairwise similarity penalty within the batch."""
         batch_size = self.dummy_images.size(0)
         if batch_size < 2:
             return
@@ -234,8 +220,7 @@ class DiffusionReconstructor:
 
 
 
-def parse_args(argv=None, *, tv_lambda_default=0.5, tv_every_default=5,
-               fast_options=True) -> argparse.Namespace:
+def parse_args(argv=None, *, tv_lambda_default=0.5, tv_every_default=5) -> argparse.Namespace:
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description="Diffusion Model Reconstruction")
 
@@ -270,26 +255,20 @@ def parse_args(argv=None, *, tv_lambda_default=0.5, tv_every_default=5,
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed for reproducibility")
 
-    # timestep 归一化区间（0~1），控制优化时的 t 范围
+    # Normalized timestep bounds used during optimization.
     parser.add_argument(
         "--t_min",
         type=float,
-        default=0.4,
+        default=0.001,
         help="Lower bound (normalized, in [0,1]) of timesteps during reconstruction.",
     )
     parser.add_argument(
         "--t_max",
         type=float,
-        default=0.6,
+        default=0.999,
         help="Upper bound (normalized, in [0,1]) of timesteps during reconstruction.",
     )
-    if fast_options:
-        parser.add_argument("--t_init_min", type=float, default=0.4,
-                            help="Initial normalized timestep lower bound for initialization")
-        parser.add_argument("--t_init_max", type=float, default=0.6,
-                            help="Initial normalized timestep upper bound for initialization")
-
-    # TV loss 权重
+    # Total variation regularization.
     parser.add_argument(
         "--tv_lambda",
         type=float,
@@ -307,10 +286,14 @@ def parse_args(argv=None, *, tv_lambda_default=0.5, tv_every_default=5,
     parser.add_argument("--observed_gradient_path",
                         dest="observed_gradient_path", default=None,
                         help="Optional observed parameter signal; otherwise load the captured gradient")
-    if fast_options:
-        parser.add_argument("--save_every", type=int, default=100,
+    parser.add_argument("--save_every", type=int, default=100,
                             help="Save every N epochs; 0 saves only the final epoch")
-        parser.add_argument("--log_every", type=int, default=10,
+    parser.add_argument("--log_every", type=int, default=10,
                             help="Log timing and peak VRAM every N epochs")
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.log_every < 1 or args.save_every < 0:
+        parser.error("--log_every must be positive and --save_every nonnegative")
+    if not 0.001 <= args.t_min < args.t_max <= 0.999:
+        parser.error("Timestep bounds must satisfy 0.001 <= t_min < t_max <= 0.999")
+    return args
 

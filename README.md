@@ -29,7 +29,7 @@ ATTACK=attack-lowmem RUN_ID=demo_lowmem RUN_INV_REV=1 bash scripts/run_demo.sh
 ATTACK=attack-lowmem RUN_ID=smoke TRAIN_EPOCHS=2 ATTACK_EPOCHS=2 bash scripts/run_demo.sh
 ```
 
-`MODEL_PATH`, `DATA_DIR`, `LABEL`, `BATCH_SIZE`, `RUN_ID`, `TRAIN_EPOCHS`, and `ATTACK_EPOCHS` are configurable environment variables. Existing run directories are protected from accidental reuse. Training records the model and first batch gradient before the epoch-0 parameter update, then continues fine-tuning. The attack uses this recorded model and gradient. `RUN_INV_REV=1` additionally uses the final fine-tuned model.
+`MODEL_PATH`, `DATA_DIR`, `LABEL`, `BATCH_SIZE`, `RUN_ID`, `TRAIN_EPOCHS`, and `ATTACK_EPOCHS` are configurable environment variables. Existing run directories are protected from accidental reuse. Training no longer restricts capture-time timestep sampling. This changes newly captured gradients compared with earlier restricted-range runs. Training records the model and first batch gradient before the epoch-0 parameter update, then continues fine-tuning. The attack uses this recorded model and gradient. `RUN_INV_REV=1` additionally uses the final fine-tuned model.
 
 For first-stage reconstruction alone, `TRAIN_EPOCHS=1` is sufficient to capture the epoch-0 signal. The default 200 training epochs also prepare the optional fine-tuned model; changing this setting changes the model used by Inv-Rev.
 
@@ -43,9 +43,9 @@ python run.py --list
 python run.py sample --help
 ```
 
-Command-line parameters override JSON configuration. Both attack implementations default to 4001 iterations, noise reset every 100 iterations, and TV every 5 iterations with weight 0.5. Sparse TV is not mathematically equivalent to TV at every iteration; use `--tv_every 1 --tv_lambda 0.1` to select that setting explicitly. Timesteps are optimized within the configured normalized range, default 0.4–0.6; training samples integer timesteps in [400, 600).
+Command-line parameters override JSON configuration. Both attack implementations default to 4001 iterations, noise reset every 100 iterations, and TV every 5 iterations with weight 0.5. Sparse TV is not mathematically equivalent to TV at every iteration; use `--tv_every 1 --tv_lambda 0.1` to select that setting explicitly. Timesteps are optimized within the configured normalized range, default 0.001–0.999. All training batches, including gradient-capture batches, sample integer timesteps uniformly from the full scheduler range [0, 1000). The continuous attack uses a minimum normalized time of 0.001 for numerical stability; timestep 0 is therefore represented approximately near this boundary.
 
-Both implementations save latent and text tensors and decoded image strips every 100 iterations and at the final iteration (zero-based indices). `--save_every 0` saves only the final state. The default attack reports timing and peak CUDA memory every 10 iterations; the low-memory attack reports each iteration. Results and `run_config.json` go to `--output_dir`.
+Both implementations save latent and text tensors and decoded image strips every 100 iterations and at the final iteration (zero-based indices). `--save_every 0` saves only the final state. The default attack reports timing and peak CUDA memory every 10 iterations; the low-memory attack uses the same logging interval. Results and `run_config.json` go to `--output_dir`.
 
 The low-memory algorithm accumulates batch parameter gradients and then backpropagates the aggregate matching objective sample by sample. It trades extra computation for memory. Prior five-image TinySD runs used approximately 18 GiB allocated memory with this implementation, while full-batch runs required substantially more than 24 GiB. These are reference observations, not hardware guarantees; first run the short check on your device. The default implementation enables cuDNN benchmarking, so fixed seeds alone do not guarantee bitwise reproducibility.
 

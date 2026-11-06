@@ -51,7 +51,7 @@ def topk_sparsify(g: torch.Tensor, ratio: float):
         return g
     flat = g.view(-1)
     k = max(1, int(flat.numel() * ratio))
-    # kthvalue：取阈值，保留最大的k个
+    # Use the kth value as the threshold to retain the largest k entries.
     thresh = flat.abs().kthvalue(flat.numel() - k + 1).values
     mask = (flat.abs() >= thresh).to(flat.dtype)
     return (flat * mask).view_as(g)

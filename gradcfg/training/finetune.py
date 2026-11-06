@@ -110,17 +110,11 @@ def train(args):
 
             noise = torch.randn_like(latents)
 
-            # ---------- 改动点 1：check epoch 时的 t 区间用超参 ----------
-            if epoch in check_epochs:
-                timesteps = torch.randint(
-                    args.check_t_min,
-                    args.check_t_max,
-                    (latents.shape[0],),
-                    device=device
-                )
-            else:
-                timesteps = torch.randint(1, TIME, (latents.shape[0],), device=device)
-            # ------------------------------------------------------------
+            # Use the full scheduler range for every training and capture step.
+            timesteps = torch.randint(
+                0, noise_scheduler.config.num_train_timesteps,
+                (latents.shape[0],), device=device,
+            )
 
             all_noises.append(noise.cpu().detach().clone())
             all_timesteps_list.append(timesteps.cpu().detach().clone())
@@ -201,34 +195,14 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--seed", type=int, default=None, help="Optional deterministic seed; omitted preserves historical behavior")
 
-    # 支持多个 check epoch，比如: --check_epochs 50 100 150
+    # Select epochs at which to save the model and first-batch gradient.
     parser.add_argument(
         "--check_epochs",
         type=int,
         nargs="+",
         default=[0],
-        help="要保存中间权重和梯度的 epoch，例如: --check_epochs 50 100 150",
+        help="Epochs for checkpoint and gradient capture, e.g. --check_epochs 50 100 150",
     )
-
-    # ---------- 改动点 2：把 check epoch 时使用的 t 区间作为超参 ----------
-    parser.add_argument(
-        "--check_t_min",
-        type=int,
-        default=400,
-        help="在 check epochs 时采样 timestep 的下界（含），例如 200",
-    )
-    parser.add_argument(
-        "--check_t_max",
-        type=int,
-        default=600,
-        help="在 check epochs 时采样 timestep 的上界（不含），例如 400",
-    )
-    # --------------------------------------------------------------------
 
     args = parser.parse_args()
-
-    # 简单保护一下，避免越界
-    args.check_t_min = max(0, min(args.check_t_min, TIME - 1))
-    args.check_t_max = max(args.check_t_min + 1, min(args.check_t_max, TIME))
-
     train(args)

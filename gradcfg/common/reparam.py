@@ -241,17 +241,17 @@ def manual_scaled_dot_product_attention(
         is_causal=False,
         scale=None
 ):
-    # 确保输入维度兼容
-    assert query.dim() == 4, "Query 形状应为 [batch, heads, seq_len, head_dim]"
+    # Validate the attention input dimensions.
+    assert query.dim() == 4, "Query must have shape [batch, heads, seq_len, head_dim]"
     batch_size, num_heads, seq_len, head_dim = query.shape
 
-    # 计算缩放因子（默认使用 head_dim 的平方根）
+    # Compute the scale factor from the head dimension by default.
     scale_factor = scale if scale is not None else head_dim ** -0.5
 
-    # Step 1: 计算 Q 和 K 的点积，并缩放
+    # Step 1: Compute and scale the query-key dot product.
     attn = torch.matmul(query, key.transpose(-2, -1)) * scale_factor
 
-    # Step 2: 处理因果掩码（如果启用）
+    # Step 2: Apply the causal mask when enabled.
     if is_causal:
         causal_mask = torch.triu(
             torch.ones(seq_len, seq_len, dtype=torch.bool, device=query.device),
@@ -259,21 +259,21 @@ def manual_scaled_dot_product_attention(
         )
         attn = attn.masked_fill(causal_mask[None, None, :, :], float('-inf'))
 
-    # Step 3: 处理自定义 attn_mask
+    # Step 3: Apply the custom attention mask.
     if attn_mask is not None:
         if attn_mask.dtype == torch.bool:
-            attn = attn.masked_fill(~attn_mask, float('-inf'))  # 将 False 位置设为 -inf
+            attn = attn.masked_fill(~attn_mask, float('-inf'))  # Set masked entries to negative infinity.
         else:
-            attn = attn + attn_mask  # 直接相加（如预先添加的 -inf 掩码）
+            attn = attn + attn_mask  # Add the supplied attention bias.
 
-    # Step 4: Softmax 归一化
+    # Step 4: Normalize attention scores with softmax.
     attn_weights = F.softmax(attn, dim=-1)
 
-    # Step 5: 应用 Dropout（训练时）
+    # Step 5: Apply attention dropout.
     if dropout_p > 0.0:
         attn_weights = F.dropout(attn_weights, p=dropout_p)
 
-    # Step 6: 加权求和（乘以 V）
+    # Step 6: Compute the weighted sum of values.
     output = torch.matmul(attn_weights, value)
 
     return output

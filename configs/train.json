@@ -7,8 +7,6 @@
   "--check_epochs": [
     0
   ],
-  "--check_t_min": 400,
-  "--check_t_max": 600,
   "--batch_size": 5,
   "--num_samples": 5,
   "--learning_rate": 1e-05,
